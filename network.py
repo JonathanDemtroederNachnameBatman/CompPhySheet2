@@ -48,6 +48,7 @@ def random_walk(length, self_avoiding):
     kette = np.zeros((length, 6), dtype=np.int8) # list of [x, y, top, right, bottom, left] where the last 4 values determine connections
     for i in range(1, length):
         directions = np.array([1, 2, 3, 4], dtype=np.int8)
+        # previous position
         x0 = kette[i-1][0]
         y0 = kette[i-1][1]
         while True:
@@ -55,15 +56,21 @@ def random_walk(length, self_avoiding):
                 print(f'Nowhere to run at {x0},{y0} at length {i}')
                 return kette[:i]
             elif len(directions) == 1:
+                # only 1 direction left to choose
                 d = directions[0]
             else:
+                # choose random direction to walk to
                 d = np.random.choice(directions)
+            # move position in direction
             x = move_x(x0, d)
             y = move_y(y0, d)
+            # check if this is self avoiding and if the position already has been walked
             if not self_avoiding or not contains(kette, x, y):
                 break
+            # position already walked -> delete direction and choose again
             directions = np.delete(directions, np.where(directions == d)[0])
         #print(['up', 'right', 'down', 'left'][d-1])
+        # update new position
         kette[i][0] = x
         kette[i][1] = y
         kette[i][opposite(d)+1] = 1 # set connection to previous pos

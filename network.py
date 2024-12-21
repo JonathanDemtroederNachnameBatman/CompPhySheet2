@@ -2,7 +2,9 @@ import random
 
 import numpy as np
 from matplotlib import pyplot as plt
-from numba import jit
+from numba import jit, int32, bool, int8
+from numpy import dtype
+
 
 class Network:
 
@@ -25,18 +27,27 @@ def opposite(dir):
 
 @jit
 def move_x(x, dir):
+    # moves x pos in direction if direction is left or right
     return x - dir + 3 if dir % 2 == 0 else x
 
 @jit
 def move_y(y, dir):
+    # moves y pos in direction if direction is up or down
     return y - dir + 2 if dir % 2 != 0 else y
 
-#@jit # errors
-def random_walk(length, self_avoiding=True):
-    kette = np.zeros((length, 6)) # list of [x, y, top, right, bottom, left] where the last 4 values determine connections
-    walked = np.zeros((length, 2))
+@jit(bool(int8[:,:],int8,int8))
+def contains(a, x, y):
+    # return np.any(np.equal(a, [x, y]).all(1)) # for non jit
+    for i in range(len(a)):
+        if a[i][0] == x and a[i][1] == y:
+            return True
+    return False
+
+@jit(int8[:,:](int32,bool))
+def random_walk(length, self_avoiding):
+    kette = np.zeros((length, 6), dtype=np.int8) # list of [x, y, top, right, bottom, left] where the last 4 values determine connections
     for i in range(1, length):
-        directions = np.array([1, 2, 3, 4])
+        directions = np.array([1, 2, 3, 4], dtype=np.int8)
         x0 = kette[i-1][0]
         y0 = kette[i-1][1]
         while True:
@@ -49,16 +60,14 @@ def random_walk(length, self_avoiding=True):
                 d = np.random.choice(directions)
             x = move_x(x0, d)
             y = move_y(y0, d)
-            if not self_avoiding or not np.any(np.equal(walked, [x,y]).all(1)):
+            if not self_avoiding or not contains(kette, x, y):
                 break
             directions = np.delete(directions, np.where(directions == d)[0])
         #print(['up', 'right', 'down', 'left'][d-1])
         kette[i][0] = x
         kette[i][1] = y
-        walked[i][0] = x
-        walked[i][1] = y
-        kette[i][d+1] = 1
-        kette[i-1][opposite(d)+1] = 1
+        kette[i][opposite(d)+1] = 1 # set connection to previous pos
+        kette[i-1][d+1] = 1 # set connection from previous pos to this pos
     return kette
 
 def plot_random_walk(kette):
@@ -73,10 +82,9 @@ def plot_random_walk(kette):
     plt.show()
 
 # test functions
-#print(opposite(1), opposite(2), opposite(3), opposite(4))
+#print(opposite(1), opposite(2), opposite(3), opposite(4)) # 3, 4, 1, 2
 #print(move_x(0, 1), move_x(0, 2), move_x(0, 3), move_x(0, 4))
 #print(move_y(0, 1), move_y(0, 2), move_y(0, 3), move_y(0, 4))
 
-k = random_walk(100)
-#print(k)
+k = random_walk(100, True)
 plot_random_walk(k)

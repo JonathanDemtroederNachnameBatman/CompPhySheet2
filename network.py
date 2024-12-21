@@ -1,22 +1,6 @@
-import random
-
 import numpy as np
 from matplotlib import pyplot as plt
 from numba import jit, int32, bool, int8
-from numpy import dtype
-
-
-class Network:
-
-    def __init__(self, size, length):
-        self.size = size
-        self.length = length
-        self.network = np.zeros((self.size+2, self.size+2))
-
-    def random_walk(self):
-        for i in range(self.length):
-            pass
-
 
 # top = 1, right = 2, bottom = 3, left = 4
 
@@ -90,8 +74,8 @@ def plot_random_walk(kette):
 
 # test functions
 #print(opposite(1), opposite(2), opposite(3), opposite(4)) # 3, 4, 1, 2
-#print(move_x(0, 1), move_x(0, 2), move_x(0, 3), move_x(0, 4))
-#print(move_y(0, 1), move_y(0, 2), move_y(0, 3), move_y(0, 4))
+#print(move_x(0, 1), move_x(0, 2), move_x(0, 3), move_x(0, 4)) # 0, 1, 0, -1
+#print(move_y(0, 1), move_y(0, 2), move_y(0, 3), move_y(0, 4)) # 1, 0, -1, 0
 
 k = random_walk(100, True)
 plot_random_walk(k)

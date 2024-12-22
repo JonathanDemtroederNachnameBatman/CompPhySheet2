@@ -14,6 +14,10 @@ class Protein:
         self.grid = create_chain_grid(self.chain) # 2d grid with chain indexes
         # list of foldable points # TODO might remove this
         self.foldable = np.full((0, 2), -1, dtype=np.int8)
+        self.check_expand(-1,-1)
+        self.check_expand(-1,-1)
+        self.check_expand(self.grid.shape[0], self.grid.shape[1])
+        self.check_expand(self.grid.shape[0], self.grid.shape[1])
 
     def is_foldable(self, amino_acid):
         return self.fold_step(amino_acid, True)
@@ -54,6 +58,9 @@ class Protein:
                 d0 = np.random.choice(possible_dir) # select random spot
             x = move_x(x0, d0)
             y = move_y(y0, d0)
+            shift = self.check_expand(x, y)
+            x += shift[0]
+            y += shift[1]
             if self.grid[x][y] < 0: break
             # remove spot and try again
             possible_dir = np.delete(possible_dir, np.where(possible_dir == d0)[0])
@@ -69,6 +76,42 @@ class Protein:
         b[opposite(d[0])+1] = 0
         b[d0+1] = d0
         return True
+
+    def check_expand(self, x, y):
+        p = np.array([0,0], dtype=np.int8)
+        if x < 0:
+            p += self.expand_grid(4, 2)
+        elif x >= self.grid.shape[0]:
+            p += self.expand_grid(2, 2)
+        if y < 0:
+            p += self.expand_grid(1, 2)
+        elif y >= self.grid.shape[1]:
+            p += self.expand_grid(3, 2)
+        return p
+
+    def expand_grid(self, direction, amount):
+        x = 0
+        y = 0
+        if direction % 2 == 0:
+            expand = np.full((amount, self.grid.shape[1]), -1, dtype=np.int8)
+            if direction == 2:
+                self.grid = np.vstack((self.grid, expand))
+            else:
+                self.grid = np.vstack((expand, self.grid))
+                x = amount
+        else:
+            expand = np.full((self.grid.shape[0], amount), -1, dtype=np.int8)
+            if direction == 2:
+                self.grid = np.hstack((self.grid, expand))
+            else:
+                self.grid = np.hstack((expand, self.grid))
+                y = amount
+        if x > 0 or y > 0:
+            for i in range(len(self.chain)):
+                self.chain[i][0] += x
+                self.chain[i][1] += y
+        return np.array([x, y], dtype=np.int8)
+
 
     def fold_step_at(self, x, y, test):
         """
@@ -99,6 +142,9 @@ class Protein:
         # move in both directions for x and y
         x = move_x(0, d[0]) + move_x(0, d[1]) + amino_acid[0]
         y = move_y(0, d[0]) + move_y(0, d[1]) + amino_acid[1]
+        shift = self.check_expand(x, y)
+        x += shift[0]
+        y += shift[1]
         if self.grid[x][y] < 0:  # spot is empty
             if test: return True
             # neighboring acids

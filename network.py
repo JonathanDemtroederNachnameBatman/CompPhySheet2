@@ -1,9 +1,10 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from numba import jit, int32, bool, int8, void
+from numba import jit, int32, boolean, int8, void
 from numba.experimental import jitclass
 
-@jitclass([('kette', int8[:,:]), ('grid', int8[:,:]), ('foldable', int8[:,:])])
+
+@jitclass([('chain', int8[:,:]), ('grid', int8[:,:]), ('foldable', int8[:,:])])
 class Protein:
 
     def __init__(self):
@@ -123,6 +124,21 @@ class Protein:
             return True
         return False
 
+    def random_fold_step(self):
+        options = np.arange(len(self.chain), dtype=np.int8)
+        while True:
+            if len(options) == 0:
+                print('Protein is unfoldable')
+                return False
+            if len(options) == 1:
+                i = options[0]
+            else:
+                i = np.random.choice(options)
+            acid = self.chain[i]
+            if self.fold_step(acid, test=False): return True
+            options = np.delete(options, np.where(options == i)[0])
+
+
 # top = 1, right = 2, bottom = 3, left = 4
 
 @jit
@@ -149,7 +165,7 @@ def move_y(y, dir):
     # moves y pos in direction if direction is up or down
     return y - dir + 2 if dir % 2 != 0 else y
 
-@jit(bool(int8[:,:],int8,int8))
+@jit(boolean(int8[:,:],int8,int8))
 def contains(a, x, y):
     # return np.any(np.equal(a, [x, y]).all(1)) # for non jit
     for i in range(len(a)):
@@ -176,7 +192,7 @@ def calc_quad_chain_size(chain):
     for c in chain:
         if c[0] > s: s = c[0]
         if c[1] > s: s = c[1]
-    return s
+    return s + 1
 
 @jit(int8[:,:](int8[:,:]))
 def create_chain_grid(chain):
@@ -187,7 +203,7 @@ def create_chain_grid(chain):
         grid[c[0]][c[1]] = i
     return grid
 
-@jit(int8[:,:](int32,bool,bool))
+@jit(int8[:,:](int32,boolean,boolean))
 def random_walk(length, self_avoiding, amino_acid):
     kette = np.zeros((length, 7 if amino_acid else 6), dtype=np.int8) # list of [x, y, top, right, bottom, left, amino_acid] where the last 4 values determine connections
     if amino_acid:

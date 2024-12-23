@@ -3,8 +3,7 @@ from matplotlib import pyplot as plt
 from numba import jit, int32, boolean, int8, void
 from numba.experimental import jitclass
 
-
-@jitclass([('chain', int8[:,:]), ('grid', int8[:,:]), ('foldable', int8[:,:])])
+@jitclass([('chain', int8[:,:]), ('grid', int8[:,:]), ('folds', int32)])
 class Protein:
 
     def __init__(self):
@@ -12,8 +11,7 @@ class Protein:
         self.chain = random_walk(30, True, True)
         # quadratic grid of protein where each cell is the index of an amino acid of the chain # TODO resize if necessary
         self.grid = create_chain_grid(self.chain) # 2d grid with chain indexes
-        # list of foldable points # TODO might remove this
-        self.foldable = np.full((0, 2), -1, dtype=np.int8)
+        self.folds = 0
 
     def is_foldable(self, amino_acid):
         return self.fold_step(amino_acid, True)
@@ -26,15 +24,6 @@ class Protein:
         a = self.grid[x][y]
         if a < 0: return np.full(7, -1, dtype=np.int8)
         return self.chain[a]
-
-    def find_foldable(self):
-        for i in range(len(self.chain)):
-            if self.is_foldable(self.chain[i]):
-                self.foldable[i][0] = self.chain[i][0]
-                self.foldable[i][1] = self.chain[i][1]
-            else:
-                self.foldable[i][0] = -1
-                self.foldable[i][1] = -1
 
     def _fold_endpoint(self, amino_acid, test, d):
         # tries to fold an endpoint of a protein chain
@@ -54,6 +43,9 @@ class Protein:
                 d0 = np.random.choice(possible_dir) # select random spot
             x = move_x(x0, d0)
             y = move_y(y0, d0)
+            shift = self.check_bounds(x, y)
+            x += shift[0]
+            y += shift[1]
             if self.grid[x][y] < 0: break
             # remove spot and try again
             possible_dir = np.delete(possible_dir, np.where(possible_dir == d0)[0])
@@ -69,6 +61,22 @@ class Protein:
         b[opposite(d[0])+1] = 0
         b[d0+1] = d0
         return True
+
+    def check_bounds(self, x, y):
+        # it can happen that the protein wanders towards a grid border
+        # checks if a position is out of grid border
+        if x < 0 or y < 0 or x >= self.grid.shape[0] or y >= self.grid.shape[1]:
+            print(f'Folding point is out of bounds after {self.folds}!')
+            return self.center_chain()
+        return np.zeros(2, dtype=np.int8)
+
+    def center_chain(self):
+        # recenters the acid chain and returns the x,y values the chain was shifted by
+        x0 = self.chain[0][0]
+        y0 = self.chain[0][1]
+        optimise_chain(self.chain)
+        self.grid = create_chain_grid(self.chain)
+        return np.array([self.chain[0][0] - x0, self.chain[0][1] - y0], dtype=np.int8)
 
     def fold_step_at(self, x, y, test):
         """
@@ -99,6 +107,9 @@ class Protein:
         # move in both directions for x and y
         x = move_x(0, d[0]) + move_x(0, d[1]) + amino_acid[0]
         y = move_y(0, d[0]) + move_y(0, d[1]) + amino_acid[1]
+        shift = self.check_bounds(x, y)
+        x += shift[0]
+        y += shift[1]
         if self.grid[x][y] < 0:  # spot is empty
             if test: return True
             # neighboring acids
@@ -125,6 +136,8 @@ class Protein:
         return False
 
     def random_fold_step(self):
+        # folds a random amino acid
+        # tries again if it failed
         options = np.arange(len(self.chain), dtype=np.int8)
         while True:
             if len(options) == 0:
@@ -135,8 +148,22 @@ class Protein:
             else:
                 i = np.random.choice(options)
             acid = self.chain[i]
-            if self.fold_step(acid, test=False): return True
+            if self.fold_step(acid, test=False):
+                self.folds += 1
+                return True
             options = np.delete(options, np.where(options == i)[0])
+
+    def verify_chain_grid(self):
+        # check if amino acid position matches with grid
+        for i in range(self.grid.shape[0]):
+            for j in range(self.grid.shape[1]):
+                a = self.grid[i][j]
+                if a >= 0:
+                    c = self.chain[a]
+                    if c[0] != i or c[1] != j:
+                        print('Chain and grid are invalid')
+                        return False
+        return True
 
 
 # top = 1, right = 2, bottom = 3, left = 4
@@ -186,20 +213,23 @@ def optimise_chain(chain):
         c[1] -= y
     return chain
 
-@jit(int8(int8[:,:]))
-def calc_quad_chain_size(chain):
-    s = 0
-    for c in chain:
-        if c[0] > s: s = c[0]
-        if c[1] > s: s = c[1]
-    return s + 1
-
 @jit(int8[:,:](int8[:,:]))
 def create_chain_grid(chain):
-    s = calc_quad_chain_size(chain)
-    grid = np.full((s, s), -1, dtype=np.int8)
+    s = len(chain) + 2
+    grid = np.full((s, s), -1, dtype=np.int8) # chain is guaranteed to always fit
+    # calc rectangular protein size
+    xs = 0; ys = 0
+    for c in chain:
+        if c[0] > xs: xs = c[0]
+        if c[1] > ys: ys = c[1]
+    xs += 1; ys += 1
+    x0 = s // 2 - xs // 2 # center pos
+    y0 = s // 2 - ys // 2
+
     for i in range(len(chain)):
         c = chain[i]
+        c[0] += x0 # offset each acid to center chain
+        c[1] += y0
         grid[c[0]][c[1]] = i
     return grid
 
@@ -250,6 +280,16 @@ def plot_random_walk(kette):
     ax.set_ylim(min(min_pos[0], min_pos[1])-.1, max(max_pos[0], max_pos[1])+.1)
     for i in range(1, len(kette)):
         ax.plot([kette[i-1][0], kette[i][0]], [kette[i-1][1], kette[i][1]])
+    plt.show()
+
+def plot_protein(protein: Protein):
+    fig, ax = plt.subplots(figsize=(10 / 2.54, 10 / 2.54))
+    plt.grid()
+    max_pos = protein.grid.shape[0]
+    ax.set_xlim(-.5, max_pos+.5)
+    ax.set_ylim(-.5, max_pos+.5)
+    for i in range(1, len(protein.chain)):
+        ax.plot([protein.chain[i - 1][0], protein.chain[i][0]], [protein.chain[i - 1][1], protein.chain[i][1]])
     plt.show()
 
 # test functions

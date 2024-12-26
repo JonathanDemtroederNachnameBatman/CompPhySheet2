@@ -8,7 +8,7 @@ class Protein:
 
     def __init__(self):
         # protein chain (self avoiding random walk)
-        self.chain = random_walk(30, True, True)
+        self.chain = random_walk(30, True, True, True)
         # quadratic grid of protein where each cell is the index of an amino acid of the chain # TODO resize if necessary
         self.grid = create_chain_grid(self.chain) # 2d grid with chain indexes
         self.folds = 0
@@ -233,8 +233,8 @@ def create_chain_grid(chain):
         grid[c[0]][c[1]] = i
     return grid
 
-@jit(int8[:,:](int32,boolean,boolean))
-def random_walk(length, self_avoiding, amino_acid):
+@jit(int8[:,:](int32,boolean,boolean,boolean))
+def random_walk(length, optimise, self_avoiding, amino_acid):
     kette = np.zeros((length, 7 if amino_acid else 6), dtype=np.int8) # list of [x, y, top, right, bottom, left, amino_acid] where the last 4 values determine connections
     if amino_acid:
         kette[0][6] = np.random.randint(0, 20)
@@ -246,7 +246,7 @@ def random_walk(length, self_avoiding, amino_acid):
         while True:
             if len(directions) == 0:
                 print(f'Nowhere to run at {x0},{y0} at length {i}')
-                return optimise_chain(kette[:i])
+                return optimise_chain(kette[:i]) if optimise else kette[:i]
             elif len(directions) == 1:
                 # only 1 direction left to choose
                 d = directions[0]
@@ -269,7 +269,7 @@ def random_walk(length, self_avoiding, amino_acid):
         kette[i-1][d+1] = d # set connection from previous pos to this pos
         if amino_acid:
             kette[i][6] = np.random.randint(0, 20)
-    return optimise_chain(kette)
+    return optimise_chain(kette) if optimise else kette
 
 def plot_random_walk(kette):
     fig, ax = plt.subplots(figsize=(10/2.54, 10/2.54))

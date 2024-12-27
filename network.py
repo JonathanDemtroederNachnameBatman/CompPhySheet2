@@ -1,17 +1,20 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from numba import jit, int32, boolean, int8, void
+from numba import jit, int32, boolean, int8, void, double
 from numba.experimental import jitclass
 
-@jitclass([('chain', int8[:,:]), ('grid', int8[:,:]), ('folds', int32)])
+@jitclass([('chain', int8[:,:]), ('grid', int8[:,:]), ('folds', int32), ('J', double[:, :]), ('energy', double)])
 class Protein:
 
-    def __init__(self):
+    def __init__(self, J):
         # protein chain (self avoiding random walk)
         self.chain = random_walk(30, True, True, True)
         # quadratic grid of protein where each cell is the index of an amino acid of the chain # TODO resize if necessary
         self.grid = create_chain_grid(self.chain) # 2d grid with chain indexes
         self.folds = 0
+        self.J = J
+        self.energy = self.calc_energy(self.chain)
+
 
     def is_foldable(self, amino_acid):
         return self.fold_step(amino_acid, True)
@@ -20,10 +23,18 @@ class Protein:
         a = self.grid[x][y]
         return False if a < 0 else self.is_foldable(self.chain[a])
 
-    def get_amino_acid(self, x, y):
-        a = self.grid[x][y]
-        if a < 0: return np.full(7, -1, dtype=np.int8)
-        return self.chain[a]
+    def get_amino_acid(self, x, y, chain=None):
+
+        # returns amino acid at position (x, y)
+        # optional: pass a specific chain-array to not edit the protein attribute
+        if chain is None:
+            a = self.grid[x][y]
+            if a < 0: return np.full(7, -1, dtype=np.int8)
+            return self.chain[a]
+        else:
+            a = self.grid[x][y]
+            if a < 0: return np.full(7, -1, dtype=np.int8)
+            return chain[a]
 
     def _fold_endpoint(self, amino_acid, test, d):
         # tries to fold an endpoint of a protein chain
@@ -89,9 +100,41 @@ class Protein:
         a = self.grid[x][y]
         return False if a < 0 else self.fold_step(self.chain[a], test)
 
-    def fold_step(self, amino_acid, test):
+    def __execute_fold(self, chain, directions, x_new, y_new, amino_acid_index):
+
+        amino_acid = chain[amino_acid_index]
+
+        a = self.get_amino_acid(move_x(amino_acid[0], directions[0]), move_y(amino_acid[1], directions[0]), chain)
+        b = self.get_amino_acid(move_x(amino_acid[0], directions[1]), move_y(amino_acid[1], directions[1]), chain)
+
+        amino_acid[0] = x_new
+        amino_acid[1] = y_new
+
+        # remove old connection
+        amino_acid[directions[0] + 1] = 0
+        amino_acid[directions[1] + 1] = 0
+        # set connection to opposite than before (True for all cases)
+        amino_acid[opposite(directions[0]) + 1] = opposite(directions[0])
+        amino_acid[opposite(directions[1]) + 1] = opposite(directions[1])
+        # neighbors can be tricky to think about
+        a[opposite(directions[0]) + 1] = 0
+        a[directions[1] + 1] = directions[1]  # sieht komisch aus, ist aber so
+        b[opposite(directions[1]) + 1] = 0
+        b[directions[0] + 1] = directions[0]
+        return chain
+
+
+    def __accept_fold(self, x_old, y_old, x_new, y_new, chain_new, energy_new, amino_acid_index):
+        self.grid[x_old][y_old] = -1
+        self.grid[x_new][y_new] = amino_acid_index
+        self.chain = chain_new
+        self.energy = energy_new
+
+
+    def fold_step(self, amino_acid, test, temperature=1):
         """
         Tries to fold an amino acid in a protein chain
+        :param temperature: protein temperature to evaluate transition probability in monte carlo step
         :param amino_acid: an entry of a random walk list
         :param test: True if folding should not happen, but rather only check if folding is possible
         :return: if amino acid was folded successfully (or can be folded if test is True)
@@ -111,31 +154,45 @@ class Protein:
         x += shift[0]
         y += shift[1]
         if self.grid[x][y] < 0:  # spot is empty
-            if test: return True
-            # neighboring acids
-            a = self.get_amino_acid(move_x(amino_acid[0], d[0]), move_y(amino_acid[1], d[0]))
-            b = self.get_amino_acid(move_x(amino_acid[0], d[1]), move_y(amino_acid[1], d[1]))
-            # fold acid with connections in a right angle
-            index = self.grid[amino_acid[0]][amino_acid[1]]
-            self.grid[amino_acid[0]][amino_acid[1]] = -1
-            self.grid[x][y] = index
-            amino_acid[0] = x
-            amino_acid[1] = y
-            # remove old connection
-            amino_acid[d[0]+1] = 0
-            amino_acid[d[1]+1] = 0
-            # set connection to opposite than before (True for all cases)
-            amino_acid[opposite(d[0])+1] = opposite(d[0])
-            amino_acid[opposite(d[1])+1] = opposite(d[1])
-            # neighbors can be tricky to think about
-            a[opposite(d[0])+1] = 0
-            a[d[1]+1] = d[1] # sieht komisch aus, ist aber so
-            b[opposite(d[1]) + 1] = 0
-            b[d[0]+1] = d[0]
-            return True
-        return False
+            if test: return True # fold possible, stop here if test
 
-    def random_fold_step(self):
+            index = self.grid[amino_acid[0]][amino_acid[1]]
+            chain_copy = self.chain.copy()
+
+            chain_copy = self.__execute_fold(chain=chain_copy,
+                                             directions=d,
+                                             x_new=x,
+                                             y_new=y,
+                                             amino_acid_index=index)
+
+            energy_new = self.calc_energy(chain_copy)
+            delta_energy = energy_new - self.energy
+
+            if delta_energy < 0:
+
+                self.__accept_fold(x_old=amino_acid[0],
+                                   y_old=amino_acid[1],
+                                   x_new=x,
+                                   y_new=y,
+                                   chain_new=chain_copy,
+                                   energy_new=energy_new,
+                                   amino_acid_index=index)
+
+            else:
+                p = np.exp(-delta_energy / temperature)
+                if np.random.random() < p:
+                    self.__accept_fold(x_old=amino_acid[0],
+                                       y_old=amino_acid[1],
+                                       x_new=x,
+                                       y_new=y,
+                                       chain_new=chain_copy,
+                                       energy_new=energy_new,
+                                       amino_acid_index=index)
+
+            return True # fold successful
+        return False # fold unsuccessful
+
+    def random_fold_step(self, temperature=1):
         # folds a random amino acid
         # tries again if it failed
         options = np.arange(len(self.chain), dtype=np.int8)
@@ -148,7 +205,7 @@ class Protein:
             else:
                 i = np.random.choice(options)
             acid = self.chain[i]
-            if self.fold_step(acid, test=False):
+            if self.fold_step(acid, test=False, temperature=temperature):
                 self.folds += 1
                 return True
             options = np.delete(options, np.where(options == i)[0])
@@ -164,6 +221,22 @@ class Protein:
                         print('Chain and grid are invalid')
                         return False
         return True
+
+    def calc_energy(self, chain):
+        energy = 0
+        for i in range(len(chain)):
+            x0 = chain[i][0]
+            y0 = chain[i][1]
+            for j in range(len(chain)):
+                if not i-1 <= j <= i+1:
+                    x1 = chain[j][0]
+                    y1 = chain[j][1]
+                    delta = abs(x1 - x0) + abs(y1 - y0)
+
+                    if delta == 1:
+                        energy += self.J[chain[i][6]][chain[j][6]]
+
+        return energy
 
 
 # top = 1, right = 2, bottom = 3, left = 4

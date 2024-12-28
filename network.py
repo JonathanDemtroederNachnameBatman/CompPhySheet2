@@ -11,10 +11,10 @@ class Protein:
         self.chain = random_walk(30, True, True, True)
         # quadratic grid of protein where each cell is the index of an amino acid of the chain # TODO resize if necessary
         self.grid = create_chain_grid(self.chain) # 2d grid with chain indexes
-        self.folds = 0
+        self.folds = 0 # fold attempts, also increases when the fold is rejected due to higher energy
+        self.actual_folds = 0 # actual amount of folds
         self.J = J
         self.energy = self.calc_energy(self.chain)
-
 
     def is_foldable(self, amino_acid):
         return self.fold_step(amino_acid, True)
@@ -24,19 +24,15 @@ class Protein:
         return False if a < 0 else self.is_foldable(self.chain[a])
 
     def get_amino_acid(self, x, y, chain=None):
-
         # returns amino acid at position (x, y)
         # optional: pass a specific chain-array to not edit the protein attribute
         if chain is None:
-            a = self.grid[x][y]
-            if a < 0: return np.full(7, -1, dtype=np.int8)
-            return self.chain[a]
-        else:
-            a = self.grid[x][y]
-            if a < 0: return np.full(7, -1, dtype=np.int8)
-            return chain[a]
+            chain = self.chain
+        a = self.grid[x][y]
+        if a < 0: return np.full(7, -1, dtype=np.int8)
+        return chain[a]
 
-    def _fold_endpoint(self, amino_acid, test, d):
+    def __fold_endpoint(self, amino_acid, test, d, temperature):
         # tries to fold an endpoint of a protein chain
         # internal use only
         # USE fold_step() instead
@@ -63,14 +59,9 @@ class Protein:
         if test: return True
         # found spot in direction d0 -> fold
         index = self.grid[amino_acid[0]][amino_acid[1]]
-        self.grid[amino_acid[0]][amino_acid[1]] = -1
-        self.grid[x][y] = index
-        amino_acid[0] = x
-        amino_acid[1] = y
-        amino_acid[d[0]+1] = 0
-        amino_acid[opposite(d0) + 1] = opposite(d0)
-        b[opposite(d[0])+1] = 0
-        b[d0+1] = d0
+        chain_copy = self.chain.copy()
+        chain_copy = self.__execute_endpoint_fold(chain_copy, d[0], d0, x, y, index, x0, y0)
+        self.__check_accept_fold(chain_copy, amino_acid[0], amino_acid[1], x, y, index, temperature)
         return True
 
     def check_bounds(self, x, y):
@@ -123,12 +114,29 @@ class Protein:
         b[directions[0] + 1] = directions[0]
         return chain
 
+    def __execute_endpoint_fold(self, chain, old_dir, new_dir, x_new, y_new, amino_acid_index, x0, y0):
+        amino_acid = chain[amino_acid_index]
+        amino_acid[0] = x_new
+        amino_acid[1] = y_new
+        amino_acid[old_dir + 1] = 0
+        amino_acid[opposite(new_dir) + 1] = opposite(new_dir)
+        b = self.get_amino_acid(x0, y0, chain)
+        b[opposite(old_dir) + 1] = 0
+        b[new_dir + 1] = new_dir
+        return chain
 
-    def __accept_fold(self, x_old, y_old, x_new, y_new, chain_new, energy_new, amino_acid_index):
-        self.grid[x_old][y_old] = -1
-        self.grid[x_new][y_new] = amino_acid_index
-        self.chain = chain_new
-        self.energy = energy_new
+    def __check_accept_fold(self, chain, x_old, y_old, x_new, y_new, amino_acid_index, temperature):
+        self.folds += 1
+        energy_new = self.calc_energy(chain)
+        delta_energy = energy_new - self.energy
+        if delta_energy < 0 or np.random.random() < np.exp(-delta_energy / temperature):
+            self.grid[x_old][y_old] = -1
+            self.grid[x_new][y_new] = amino_acid_index
+            self.chain = chain
+            self.energy = energy_new
+            self.actual_folds += 1
+            return True # fold accepted
+        return False
 
 
     def fold_step(self, amino_acid, test, temperature=1):
@@ -145,7 +153,7 @@ class Protein:
         if len(d) == 0 or len(d) > 2: return False  # invalid
         if (c[0] == 1 and c[2] == 1) or (c[1] == 1 and c[3] == 1): return False  # straight lines can't fold
         if len(d) == 1: # endpoint
-            return self._fold_endpoint(amino_acid, test, d)
+            return self.__fold_endpoint(amino_acid, test, d, temperature)
 
         # move in both directions for x and y
         x = move_x(0, d[0]) + move_x(0, d[1]) + amino_acid[0]
@@ -164,31 +172,7 @@ class Protein:
                                              x_new=x,
                                              y_new=y,
                                              amino_acid_index=index)
-
-            energy_new = self.calc_energy(chain_copy)
-            delta_energy = energy_new - self.energy
-
-            if delta_energy < 0:
-
-                self.__accept_fold(x_old=amino_acid[0],
-                                   y_old=amino_acid[1],
-                                   x_new=x,
-                                   y_new=y,
-                                   chain_new=chain_copy,
-                                   energy_new=energy_new,
-                                   amino_acid_index=index)
-
-            else:
-                p = np.exp(-delta_energy / temperature)
-                if np.random.random() < p:
-                    self.__accept_fold(x_old=amino_acid[0],
-                                       y_old=amino_acid[1],
-                                       x_new=x,
-                                       y_new=y,
-                                       chain_new=chain_copy,
-                                       energy_new=energy_new,
-                                       amino_acid_index=index)
-
+            self.__check_accept_fold(chain_copy, amino_acid[0], amino_acid[1], x, y, index, temperature)
             return True # fold successful
         return False # fold unsuccessful
 
@@ -206,7 +190,6 @@ class Protein:
                 i = np.random.choice(options)
             acid = self.chain[i]
             if self.fold_step(acid, test=False, temperature=temperature):
-                self.folds += 1
                 return True
             options = np.delete(options, np.where(options == i)[0])
 
@@ -222,7 +205,9 @@ class Protein:
                         return False
         return True
 
-    def calc_energy(self, chain):
+    def calc_energy(self, chain=None):
+        if chain is None:
+            chain = self.chain
         energy = 0
         for i in range(len(chain)):
             x0 = chain[i][0]

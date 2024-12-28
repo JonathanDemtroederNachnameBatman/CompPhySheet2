@@ -6,9 +6,9 @@ from numba.experimental import jitclass
 @jitclass([('chain', int8[:,:]), ('grid', int8[:,:]), ('folds', int32), ('actual_folds', int32), ('J', float64[:, :]), ('energy', float64)])
 class Protein:
 
-    def __init__(self, J):
+    def __init__(self, chain, J):
         # protein chain (self avoiding random walk)
-        self.chain = random_walk(30, True, True, True)
+        self.chain = chain
         # quadratic grid of protein where each cell is the index of an amino acid of the chain # TODO resize if necessary
         self.grid = create_chain_grid(self.chain) # 2d grid with chain indexes
         self.folds = 0 # fold attempts, also increases when the fold is rejected due to higher energy
@@ -238,7 +238,8 @@ def create_protein(interaction_type='normal'):
         J = random_interaction(20, -3, 1/np.sqrt(2))
     else:
         raise Exception('Invalid interaction type. Valid values are ["const", "const_random_sign", "normal"].')
-    return Protein(J)
+    chain = random_walk(30, True, True, True)
+    return Protein(chain, J)
 
 
 @jit('float64[:,:](int32,float64,boolean)')

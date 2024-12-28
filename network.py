@@ -1,9 +1,9 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from numba import jit, int32, boolean, int8, void, double
+from numba import jit, int32, boolean, int8, void, float64, optional
 from numba.experimental import jitclass
 
-@jitclass([('chain', int8[:,:]), ('grid', int8[:,:]), ('folds', int32), ('J', double[:, :]), ('energy', double)])
+@jitclass([('chain', int8[:,:]), ('grid', int8[:,:]), ('folds', int32), ('actual_folds', int32), ('J', float64[:, :]), ('energy', float64)])
 class Protein:
 
     def __init__(self, J):
@@ -223,6 +223,45 @@ class Protein:
 
         return energy
 
+    def eigenvals_J(self):
+        return np.linalg.eigvals(self.J + 0j) # add imaginary part to compensate for possible (forbidden) domain changes
+
+
+@jit()
+def create_protein(interaction_type='normal'):
+    if interaction_type == 'const':
+        J = const_interaction(20, -3, random_sign=False)
+    elif interaction_type == 'const_random_sign':
+        J = const_interaction(20, -3, random_sign=True)
+    elif interaction_type == 'normal':
+        # sigma needs to be chosen like this to cancel out the 2
+        J = random_interaction(20, -3, 1/np.sqrt(2))
+    else:
+        raise Exception('Invalid interaction type. Valid values are ["const", "const_random_sign", "normal"].')
+    return Protein(J)
+
+
+@jit('float64[:,:](int32,float64,boolean)')
+def const_interaction(size, value, random_sign):
+    J = np.full((size, size), value)
+    if random_sign:
+        choices = np.array([True, False])
+        for i in range(J.shape[0]):
+            for j in range(i, J.shape[1]):
+                if np.random.choice(choices):
+                    J[i][j] *= -1
+                    J[j][i] = J[i][j] # keep symmetric
+    return J
+
+@jit(float64[:,:](int32,float64,float64))
+def random_interaction(size, mean, sigma):
+    # https://numpy.org/doc/2.0/reference/random/generated/numpy.random.normal.html
+    J = np.random.normal(mean, sigma, size=(size, size))
+    # symmetric
+    for i in range(J.shape[0]):
+        for j in range(i+1, J.shape[1]):
+            J[j][i] = J[i][j]
+    return J
 
 # top = 1, right = 2, bottom = 3, left = 4
 

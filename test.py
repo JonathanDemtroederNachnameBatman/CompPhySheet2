@@ -1,4 +1,3 @@
-from interaction import Interaction
 import network
 import numpy as np
 from numba import jit
@@ -8,8 +7,7 @@ def set_seed():
     np.random.seed(1)
 
 #set_seed()
-J = Interaction().matrix
-p = network.Protein(J)
+p = network.create_protein(interaction_type='normal')
 
 network.plot_random_walk(p.chain)
 print(p.chain)

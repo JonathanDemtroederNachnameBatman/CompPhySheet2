@@ -213,7 +213,7 @@ class Protein:
             x0 = chain[i][0]
             y0 = chain[i][1]
             for j in range(len(chain)):
-                if not i-1 <= j <= i+1:
+                if not (i-1 <= j <= i+1):
                     x1 = chain[j][0]
                     y1 = chain[j][1]
                     delta = abs(x1 - x0) + abs(y1 - y0)

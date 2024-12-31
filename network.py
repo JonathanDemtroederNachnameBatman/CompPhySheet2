@@ -15,6 +15,16 @@ class Protein:
         self.actual_folds = 0 # actual amount of folds
         self.J = J
         self.energy = self.calc_energy(self.chain)
+        #self.size = self.calc_size()
+
+    def calc_size(self):
+        x0 = self.chain[0][0]
+        y0 = self.chain[0][1]
+
+        x1 = self.chain[-1][0]
+        y1 = self.chain[-1][1]
+
+        return np.sqrt((x1-x0)**2 + (y1-y0)**2)
 
     def is_foldable(self, amino_acid):
         return self.fold_step(amino_acid, True)
@@ -388,6 +398,10 @@ def plot_protein(protein: Protein):
     ax.set_ylim(-.5, max_pos+.5)
     for i in range(1, len(protein.chain)):
         ax.plot([protein.chain[i - 1][0], protein.chain[i][0]], [protein.chain[i - 1][1], protein.chain[i][1]])
+
+    size = round(protein.calc_size(), 2)
+    plt.plot([], [], label='$r$ = '+str(size))
+    plt.legend()
     plt.show()
 
 # test functions

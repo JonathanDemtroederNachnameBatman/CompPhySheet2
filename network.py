@@ -18,6 +18,7 @@ class Protein:
         #self.size = self.calc_size()
 
     def calc_size(self):
+        # returns euclidian distance between Protein endpoints
         x0 = self.chain[0][0]
         y0 = self.chain[0][1]
 
@@ -78,7 +79,7 @@ class Protein:
         # it can happen that the protein wanders towards a grid border
         # checks if a position is out of grid border
         if x < 0 or y < 0 or x >= self.grid.shape[0] or y >= self.grid.shape[1]:
-            print(f'Folding point is out of bounds after {self.folds}!')
+            #print(f'Folding point is out of bounds after {self.folds}!')
             return self.center_chain()
         return np.zeros(2, dtype=np.int8)
 

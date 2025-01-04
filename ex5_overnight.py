@@ -30,28 +30,26 @@ def monte_carlo_temperature(protein, temperature_0, temperature_1, number_of_ste
     return simulation
 
 
-steps = 100
+steps = 200
 repeats = 10000
-num_iterations = 2* (steps * repeats - repeats)
+num_iterations = 2 * (steps * repeats - repeats)
 T_0 = 10
 T_1 = 1
 
 # create two similar proteins
-p = network.create_protein(interaction_type='normal')
-p_copy = network.Protein(p.chain, p.J)
-
+p1 = network.create_protein(interaction_type='normal')
+p2 = network.Protein(np.copy(p1.chain), np.copy(p1.J))
 
 with ProgressBar(total=num_iterations) as progress:
-    #np.random.seed(0)
-    arr_T = monte_carlo_temperature(p, T_0, T_1, steps, repeats, progress)
-    #np.random.seed(0)
-    arr_T_copy = monte_carlo_temperature(p_copy, T_0, T_1, steps, repeats, progress)
+    arr_T_1 = monte_carlo_temperature(p1, T_0, T_1, steps, repeats, progress)
+    arr_T_2 = monte_carlo_temperature(p2, T_0, T_1, steps, repeats, progress)
 
-energy = arr_T[:, 0]
-size = arr_T[:, 1]
-energy_copy = arr_T_copy[:, 0]
-size_copy = arr_T_copy[:, 1]
+energy_1 = arr_T_1[:, 0]
+size_1 = arr_T_1[:, 1]
+energy_2 = arr_T_2[:, 0]
+size_2 = arr_T_2[:, 1]
 
+# plot energy
 
 fig, ax = plt.subplots()
 
@@ -59,7 +57,27 @@ ax.set_xlabel('Temperatur in a.u.')
 ax.set_ylabel('Energie in a.u.')
 plt.grid()
 
-ax.plot(np.linspace(T_0, T_1, int(steps)), energy, color='blue', label='Protein 1')
-ax.plot(np.linspace(T_0, T_1, int(steps)), energy_copy, color='red', label='Protein 2')
+ax.plot(np.linspace(T_0, T_1, int(steps)), energy_1, color='blue', label='Protein 1')
+ax.plot(np.linspace(T_0, T_1, int(steps)), energy_2, color='red', label='Protein 2')
 plt.legend(loc='lower right')
-plt.savefig('ex5-energy')
+plt.savefig('pics/ex5/energy')
+
+# plot size
+
+fig, ax = plt.subplots()
+
+ax.set_xlabel('Temperatur in a.u.')
+ax.set_ylabel('Abstand in a.u.')
+plt.grid()
+
+ax.plot(np.linspace(T_0, T_1, int(steps)), size_1, color='blue', label='Protein 1')
+ax.plot(np.linspace(T_0, T_1, int(steps)), size_2, color='red', label='Protein 2')
+plt.legend(loc='lower right')
+plt.savefig('pics/ex5/size')
+
+# plot proteins
+
+network.plot_protein(p1)
+plt.savefig('pics/ex5/protein1')
+network.plot_protein(p2)
+plt.savefig('pics/ex5/protein2')

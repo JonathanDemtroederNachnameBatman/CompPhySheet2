@@ -3,7 +3,7 @@ import numpy as np
 
 import network
 from numba import jit, void
-
+'''
 @jit() # doesn't work without jit
 def set_seed():
     np.random.seed(123456789)
@@ -24,7 +24,7 @@ network.plot_protein(p)
 fold(p, 1)
 network.plot_protein(p)
 p.verify_chain_grid()
-
+'''
 
 """
 set_seed()

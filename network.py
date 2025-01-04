@@ -15,7 +15,6 @@ class Protein:
         self.actual_folds = 0 # actual amount of folds
         self.J = J
         self.energy = self.calc_energy(self.chain)
-        #self.size = self.calc_size()
 
     def calc_size(self):
         # returns euclidian distance between Protein endpoints
@@ -230,9 +229,27 @@ class Protein:
                     delta = abs(x1 - x0) + abs(y1 - y0)
 
                     if delta == 1:
-                        energy += self.J[chain[i][6]][chain[j][6]]
+                        energy += self.J[chain[i][6]][chain[j][6]] / 2 # correct for double-counts
 
         return energy
+
+    def calc_next_neighbors(self, chain=None):
+        if chain is None:
+            chain = self.chain
+        n = 0
+        for i in range(len(chain)):
+            x0 = chain[i][0]
+            y0 = chain[i][1]
+            for j in range(len(chain)):
+                if not (i-1 <= j <= i+1):
+                    x1 = chain[j][0]
+                    y1 = chain[j][1]
+                    delta = abs(x1 - x0) + abs(y1 - y0)
+
+                    if delta == 1:
+                        n += 1 / 2 # correct for double-counts
+
+        return n
 
     def eigenvals_J(self):
         return np.linalg.eigvals(self.J + 0j) # add imaginary part to compensate for possible (forbidden) domain changes

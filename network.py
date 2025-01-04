@@ -192,7 +192,7 @@ class Protein:
         options = np.arange(len(self.chain), dtype=np.int8)
         while True:
             if len(options) == 0:
-                print('Protein is unfoldable')
+               # print('Protein is unfoldable')
                 return False
             if len(options) == 1:
                 i = options[0]
@@ -211,7 +211,7 @@ class Protein:
                 if a >= 0:
                     c = self.chain[a]
                     if c[0] != i or c[1] != j:
-                        print('Chain and grid are invalid')
+                       # print('Chain and grid are invalid')
                         return False
         return True
 
@@ -371,7 +371,7 @@ def random_walk(length, optimise, self_avoiding, amino_acid):
         y0 = kette[i-1][1]
         while True:
             if len(directions) == 0:
-                print(f'Nowhere to run at {x0},{y0} at length {i}')
+               # print(f'Nowhere to run at {x0},{y0} at length {i}')
                 return optimise_chain(kette[:i]) if optimise else kette[:i]
             elif len(directions) == 1:
                 # only 1 direction left to choose

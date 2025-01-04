@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import network
-from numba import jit, njit, double, int8, int64
+from numba import njit, double
 from numba_progress import ProgressBar
 
 

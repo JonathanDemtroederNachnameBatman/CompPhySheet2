@@ -15,7 +15,6 @@ class Protein:
         self.actual_folds = 0 # actual amount of folds
         self.J = J
         self.energy = self.calc_energy(self.chain)
-        #self.size = self.calc_size()
 
     def calc_size(self):
         # returns euclidian distance between Protein endpoints
@@ -193,7 +192,7 @@ class Protein:
         options = np.arange(len(self.chain), dtype=np.int8)
         while True:
             if len(options) == 0:
-                print('Protein is unfoldable')
+               # print('Protein is unfoldable')
                 return False
             if len(options) == 1:
                 i = options[0]
@@ -212,7 +211,7 @@ class Protein:
                 if a >= 0:
                     c = self.chain[a]
                     if c[0] != i or c[1] != j:
-                        print('Chain and grid are invalid')
+                       # print('Chain and grid are invalid')
                         return False
         return True
 
@@ -230,9 +229,27 @@ class Protein:
                     delta = abs(x1 - x0) + abs(y1 - y0)
 
                     if delta == 1:
-                        energy += self.J[chain[i][6]][chain[j][6]]
+                        energy += self.J[chain[i][6]][chain[j][6]] / 2 # correct for double-counts
 
         return energy
+
+    def calc_next_neighbors(self, chain=None):
+        if chain is None:
+            chain = self.chain
+        n = 0
+        for i in range(len(chain)):
+            x0 = chain[i][0]
+            y0 = chain[i][1]
+            for j in range(len(chain)):
+                if not (i-1 <= j <= i+1):
+                    x1 = chain[j][0]
+                    y1 = chain[j][1]
+                    delta = abs(x1 - x0) + abs(y1 - y0)
+
+                    if delta == 1:
+                        n += 1 / 2 # correct for double-counts
+
+        return n
 
     def eigenvals_J(self):
         return np.linalg.eigvals(self.J + 0j) # add imaginary part to compensate for possible (forbidden) domain changes
@@ -354,7 +371,7 @@ def random_walk(length, optimise, self_avoiding, amino_acid):
         y0 = kette[i-1][1]
         while True:
             if len(directions) == 0:
-                print(f'Nowhere to run at {x0},{y0} at length {i}')
+               # print(f'Nowhere to run at {x0},{y0} at length {i}')
                 return optimise_chain(kette[:i]) if optimise else kette[:i]
             elif len(directions) == 1:
                 # only 1 direction left to choose
@@ -391,7 +408,7 @@ def plot_random_walk(kette):
         ax.plot([kette[i-1][0], kette[i][0]], [kette[i-1][1], kette[i][1]])
     plt.show()
 
-def plot_protein(protein: Protein):
+def plot_protein(protein: Protein, filename=''):
     fig, ax = plt.subplots(figsize=(10 / 2.54, 10 / 2.54))
     plt.grid()
     max_pos = protein.grid.shape[0]
@@ -403,7 +420,10 @@ def plot_protein(protein: Protein):
     size = round(protein.calc_size(), 2)
     plt.plot([], [], label='$r$ = '+str(size))
     plt.legend()
-    plt.show()
+    if filename != '':
+        plt.savefig(filename)
+    else:
+        plt.show()
 
 # test functions
 #print(opposite(1), opposite(2), opposite(3), opposite(4)) # 3, 4, 1, 2

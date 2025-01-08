@@ -37,7 +37,7 @@ def monte_carlo_temperature(protein, temperature_0, temperature_1, number_of_ste
 
 
 steps = 200
-repeats = 10000000
+repeats = 12000000
 
 T_0 = 10
 T_1 = 1

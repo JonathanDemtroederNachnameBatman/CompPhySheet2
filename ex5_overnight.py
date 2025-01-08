@@ -30,8 +30,8 @@ def monte_carlo_temperature(protein, temperature_0, temperature_1, number_of_ste
     return simulation
 
 
-steps = 200
-repeats = 10000
+steps = 250
+repeats = 15000000
 num_iterations = 2 * (steps * repeats - repeats)
 T_0 = 10
 T_1 = 1
@@ -77,7 +77,5 @@ plt.savefig('pics/ex5/size')
 
 # plot proteins
 
-network.plot_protein(p1)
-plt.savefig('pics/ex5/protein1')
-network.plot_protein(p2)
-plt.savefig('pics/ex5/protein2')
+network.plot_protein(p1, filename='pics/ex5/protein1')
+network.plot_protein(p2, filename='pics/ex5/protein2')

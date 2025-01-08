@@ -408,7 +408,7 @@ def plot_random_walk(kette):
         ax.plot([kette[i-1][0], kette[i][0]], [kette[i-1][1], kette[i][1]])
     plt.show()
 
-def plot_protein(protein: Protein):
+def plot_protein(protein: Protein, filename=''):
     fig, ax = plt.subplots(figsize=(10 / 2.54, 10 / 2.54))
     plt.grid()
     max_pos = protein.grid.shape[0]
@@ -420,7 +420,10 @@ def plot_protein(protein: Protein):
     size = round(protein.calc_size(), 2)
     plt.plot([], [], label='$r$ = '+str(size))
     plt.legend()
-    plt.show()
+    if filename != '':
+        plt.savefig(filename)
+    else:
+        plt.show()
 
 # test functions
 #print(opposite(1), opposite(2), opposite(3), opposite(4)) # 3, 4, 1, 2
